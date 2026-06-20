@@ -307,14 +307,31 @@ def ask_ai(api_key, prompt, is_authorized, channel_id, uid=None, autonomous=Fals
             return "AI error 💀"
 
         data = response.json()
+        print(f"[DEBUG] Full API response: {data}")
         
         if "choices" not in data or not data["choices"]:
             print(f"[ERROR] No choices in response: {data}")
             return "AI error 💀"
 
-        message_content = data["choices"][0]["message"]["content"]
-        if not message_content or message_content.strip() == "":
-            print(f"[ERROR] Empty message content in response")
+        choice = data["choices"][0]
+        print(f"[DEBUG] Choice data: {choice}")
+        
+        # Try to extract message content
+        message_content = None
+        
+        # First try: message.content (standard OpenAI format)
+        if "message" in choice and isinstance(choice["message"], dict):
+            message_content = choice["message"].get("content")
+            print(f"[DEBUG] Found message content: {message_content}")
+        
+        # Second try: delta.content (streaming format - shouldn't happen but just in case)
+        elif "delta" in choice and isinstance(choice["delta"], dict):
+            message_content = choice["delta"].get("content")
+            print(f"[DEBUG] Found delta content: {message_content}")
+        
+        # Check if we got valid content
+        if not message_content or (isinstance(message_content, str) and message_content.strip() == ""):
+            print(f"[ERROR] Empty or missing message content. Choice structure: {choice}")
             return "AI error 💀"
 
         print(f"[DEBUG] AI response received: {message_content[:50]}...")
@@ -328,6 +345,9 @@ def ask_ai(api_key, prompt, is_authorized, channel_id, uid=None, autonomous=Fals
         return "AI error 💀"
     except ValueError as e:
         print(f"[ERROR] JSON parsing error: {e}")
+        return "AI error 💀"
+    except KeyError as e:
+        print(f"[ERROR] Missing expected key in response: {e}")
         return "AI error 💀"
     except Exception as e:
         print(f"[ERROR] Unexpected error in ask_ai: {type(e).__name__}: {e}")
