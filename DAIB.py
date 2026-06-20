@@ -240,7 +240,7 @@ def ask_ai(api_key, prompt, is_authorized, channel_id, uid=None, autonomous=Fals
     # Check if API key is set
     if not api_key or api_key.strip() == "":
         print("ERROR: OPENROUTER_API_KEY is not set!")
-        return "AI error 💀"
+        return "❌ AI is not configured. The bot owner needs to add API credits."
 
     mode_text = {
         "normal": "NORMAL MODE",
@@ -301,17 +301,24 @@ def ask_ai(api_key, prompt, is_authorized, channel_id, uid=None, autonomous=Fals
 
         print(f"[DEBUG] Response status code: {response.status_code}")
         
+        # Handle 402 Insufficient Credits specially
+        if response.status_code == 402:
+            print(f"[ERROR] API returned 402 Insufficient Credits")
+            print(f"[ERROR] Response: {response.text}")
+            return "❌ AI service is out of credits. Owner needs to add more OpenRouter credits!"
+        
+        # Handle other non-200 errors
         if response.status_code != 200:
             print(f"[ERROR] API returned non-200 status: {response.status_code}")
             print(f"[ERROR] Response: {response.text}")
-            return "AI error 💀"
+            return "❌ AI service error (non-200 response). Please try again later."
 
         data = response.json()
         print(f"[DEBUG] Full API response: {data}")
         
         if "choices" not in data or not data["choices"]:
             print(f"[ERROR] No choices in response: {data}")
-            return "AI error 💀"
+            return "❌ Unexpected response format from AI service."
 
         choice = data["choices"][0]
         print(f"[DEBUG] Choice data: {choice}")
@@ -332,28 +339,28 @@ def ask_ai(api_key, prompt, is_authorized, channel_id, uid=None, autonomous=Fals
         # Check if we got valid content
         if not message_content or (isinstance(message_content, str) and message_content.strip() == ""):
             print(f"[ERROR] Empty or missing message content. Choice structure: {choice}")
-            return "AI error 💀"
+            return "❌ AI returned empty response."
 
         print(f"[DEBUG] AI response received: {message_content[:50]}...")
         return message_content
 
     except requests.exceptions.Timeout:
         print("[ERROR] API request timed out (30 seconds)")
-        return "AI error 💀"
+        return "❌ AI request timed out. Please try again."
     except requests.exceptions.ConnectionError as e:
         print(f"[ERROR] Connection error: {e}")
-        return "AI error 💀"
+        return "❌ Cannot connect to AI service. Check your internet connection."
     except ValueError as e:
         print(f"[ERROR] JSON parsing error: {e}")
-        return "AI error 💀"
+        return "❌ Invalid response from AI service."
     except KeyError as e:
         print(f"[ERROR] Missing expected key in response: {e}")
-        return "AI error 💀"
+        return "❌ Unexpected AI response structure."
     except Exception as e:
         print(f"[ERROR] Unexpected error in ask_ai: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        return "AI error 💀"
+        return "❌ Unknown error occurred."
 
 # =========================
 # DISCORD BOT
@@ -397,7 +404,7 @@ def start_bot():
                     async with target_channel.typing():
                         reply = ask_ai(OPENROUTER_API_KEY, auto_prompt, True, target_channel.id, autonomous=True)
                     
-                    if reply and reply != "AI error 💀":
+                    if reply and not reply.startswith("❌"):
                         get_memory(target_channel.id).append(f"Bart (Autonomous): {reply}")
                         await target_channel.send(reply)
                 except Exception as e:
